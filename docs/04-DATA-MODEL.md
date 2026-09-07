@@ -206,10 +206,24 @@ export interface ProvenanceCandidate {
 }
 ```
 
+### ProvenanceLink
+
+```ts
+export interface ProvenanceLink {
+  sourceId: string;
+  targetId: string;
+  relation: string;
+  confidence: Confidence;
+  evidence: Evidence[];
+}
+```
+
+> Note: Consider adding when the relationship graph between sessions, commits, and file changes becomes richer. Not required for MVP.
+
 ### Result
 
 ```ts
-export type Confidence = "low" | "medium" | "high";
+export type Confidence = "confirmed" | "strong" | "possible" | "unknown";
 
 export interface ProvenanceResult {
   file: string;
@@ -234,28 +248,29 @@ Internally, a normalized score can be useful:
 Initial qualitative mapping may be:
 
 ```text
-0.00–0.39  Low
-0.40–0.69  Medium
-0.70–1.00  High
+0.70–1.00  Confirmed
+0.50–0.69  Strong
+0.25–0.49  Possible
+0.00–0.24  Unknown
 ```
 
 These thresholds are provisional and must be tuned against fixtures.
 
 ### Example weighting direction
 
-Strong evidence:
+Confirmed-level or strong evidence:
 
 - explicit edit of target file
 - exact line-range overlap
 - associated blame/commit match
 
-Medium evidence:
+Supporting evidence:
 
 - file touched during session
 - repository/project path match
 - close timestamp
 
-Weak evidence:
+Weak or ambiguous evidence:
 
 - same day only
 - command text mentions filename without edit
@@ -391,6 +406,6 @@ MVP behavior:
 
 - do not delete source logs
 - local cache can be reset
-- expose a future command such as `agenttrace cache clear`
+- expose a future command such as `originlog cache clear`
 
 No automatic cloud retention exists in MVP.

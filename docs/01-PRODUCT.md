@@ -2,39 +2,41 @@
 
 ## 1. Product Statement
 
-AgentTrace is a **local-first provenance tool for AI-assisted coding**.
+Originlog is a **local-first code provenance tool**.
 
 It answers four questions:
 
-1. **Which agent changed this code?**
-2. **What prompt/task caused the change?**
-3. **What did the agent do before and after the edit?**
-4. **How confident are we that this session caused the current line/file state?**
+1. **Where did this code change come from, and why?**
+2. **What prompt or task caused the change?**
+3. **What happened before and after the edit?**
+4. **How confident are we that this session caused the current code state?**
 
 The primary positioning is:
 
-> **Git tells you what changed. AgentTrace tells you why.**
+> **Know where a code change came from, and why.**
 
-Alternative short positioning:
+Secondary positioning:
 
-> **`git blame` for AI coding agents.**
+> **Git tells you what changed. Originlog tells you where it came from and why.**
+
+The product should feel credible even if all references to AI are removed. AI coding agents are data sources, not the product identity.
 
 ## 2. Problem
 
-Developers increasingly let coding agents read, edit, test, and refactor large portions of a repository. Git preserves the final code history, but it usually does not preserve the full operational context that led to the change.
+Developers increasingly let coding agents read, edit, test, and refactor large portions of a repository. Git preserves the final code history, but it usually does not preserve the full operational context and intent that led to the change.
 
 After several sessions, common questions become difficult to answer:
 
-- Which agent touched this file?
+- Where did this change originate?
 - Was this code generated during a bug fix or refactor?
-- What was the original prompt?
+- What was the original prompt or intent?
 - Did tests fail and cause a retry?
-- Was the edit made by the agent or by a human afterward?
-- Can the attribution be trusted?
+- Was the edit made by an agent or by a human afterward?
+- Can the attribution and provenance be trusted?
 
-The raw information may exist in local agent logs, shell output, session metadata, and Git history, but it is fragmented.
+The raw information may exist in local agent logs, shell output, session metadata, and Git history, but it is fragmented across different tools and formats.
 
-AgentTrace combines those sources into one local view.
+Originlog correlates those sources into one coherent local view.
 
 ## 3. Target Users
 
@@ -49,47 +51,62 @@ Developers who regularly use:
 
 ### Secondary
 
-- maintainers reviewing AI-heavy contributions
-- developers returning to an old AI-assisted branch
+- maintainers reviewing agent-assisted contributions
+- developers returning to an old assisted branch
 - teams evaluating coding-agent workflows
-- tool authors building around agent provenance
+- tool authors building around code provenance
 
 ## 4. Jobs to Be Done
 
 ### JTBD-1 — Understand a suspicious line
 
 ```bash
-agenttrace why src/auth/token.ts:47
+originlog why src/auth.ts:47
 ```
 
 Expected result:
 
-- likely agent
-- session id
-- prompt/task
-- related edits and commands
-- Git evidence
-- confidence
+```text
+src/auth.ts:47
+
+Origin
+Claude Code · session 8d7fa
+
+Intent
+Fix JWT refresh race condition
+
+Evidence
+12:41  read   src/auth.ts
+12:42  edit   src/auth.ts
+12:42  run    npm test
+12:42  fail   refresh-token.test.ts
+12:43  edit   src/auth.ts
+12:43  run    npm test
+12:43  pass
+
+Related commit
+a83cb21
+```
 
 ### JTBD-2 — Review what an agent did
 
 ```bash
-agenttrace show 8d7fa921
+originlog show 8d7fa921
 ```
 
 Expected result:
 
-- prompt
+- prompt / intent
 - chronological timeline
 - files read/edited
 - commands executed
 - failures/retries
 - final status where inferable
 
-### JTBD-3 — Find recent AI work in the repository
+### JTBD-3 — Find recent agent work in the repository
 
 ```bash
-agenttrace sessions
+originlog sessions
 ```
 
 Expected result:
@@ -103,7 +120,7 @@ Expected result:
 ### JTBD-4 — Diagnose installation or missing data
 
 ```bash
-agenttrace doctor
+originlog doctor
 ```
 
 Expected result:
@@ -126,7 +143,7 @@ Expected result:
 - Git status/diff/log/blame wrapper
 - file/session correlation
 - confidence model
-- `why <file>:<line>`
+- `why <target>` (`<file>`, `<file>:<line>`, `<file>:<range>`, `<commit>`)
 
 ### Important but not required for first release
 
@@ -146,18 +163,33 @@ Expected result:
 - LLM-generated explanations
 - automatic code review
 - enterprise policy enforcement
+- token-cost tracker
+- productivity score system
+- team management system
+- prompt management system
 
 ## 6. Command Surface
 
 ```text
-agenttrace doctor
-agenttrace sessions [--all] [--agent <id>]
-agenttrace show <session-id> [--json]
-agenttrace diff <session-id> [--stat] [--patch]
-agenttrace why <file>:<line> [--json]
+originlog
+originlog sessions [--all] [--agent <id>]
+originlog show <session-id> [--json]
+originlog diff <session-id> [--stat] [--patch]
+originlog why <target> [--json]
+originlog doctor
 ```
 
-Do not expand the CLI until these commands are coherent.
+Target variants for `originlog why`:
+
+- `originlog why src/auth.ts`
+- `originlog why src/auth.ts:47`
+- `originlog why src/auth.ts:40-60`
+- `originlog why <commit>`
+
+Notes:
+- Running `originlog` without subcommands displays help text.
+- `originlog doctor` remains available for diagnostics, but is no longer the lead command.
+- Do not expand the CLI until these core commands are coherent.
 
 ## 7. UX Requirements
 
@@ -172,22 +204,22 @@ Claude changed this line.
 Good:
 
 ```text
-Likely changed by Claude Code
-Confidence: High
+Origin: Claude Code · session 8d7fa921
+Confidence: Confirmed
 
-Evidence
-- Session explicitly edited src/auth/token.ts
+Evidence:
+- Session explicitly edited src/auth.ts
 - Edit range overlaps line 47
 - Session occurred 3 minutes before commit a83cb21
 ```
 
 ### Unknown must remain unknown
 
-If evidence is weak:
+If evidence is weak or absent:
 
 ```text
-No reliable agent provenance found.
-Confidence: Low
+No reliable provenance found.
+Confidence: Unknown
 ```
 
 Never fabricate certainty to make output look impressive.
@@ -201,6 +233,7 @@ Never fabricate certainty to make output look impressive.
 5. **Agent-specific formats stay behind adapters**
 6. **Graceful parsing beats strict failure**
 7. **Fast CLI workflow before rich UI**
+8. **The product should feel credible even if all references to AI are removed**
 
 ## 9. Success Metrics
 
@@ -221,7 +254,7 @@ Useful metrics after launch:
 - unique contributors
 - new adapter pull requests
 - issue-to-resolution ratio
-- percentage of users successfully completing `agenttrace doctor`
+- percentage of users successfully completing `originlog doctor`
 
 Stars are an adoption signal, not the only product metric.
 
@@ -232,15 +265,15 @@ A developer runs an agent to fix an authentication bug. The agent edits two file
 Later the developer runs:
 
 ```bash
-agenttrace why src/auth/token.ts:47
+originlog why src/auth.ts:47
 ```
 
-AgentTrace must show:
+Originlog must show:
 
 - the correct session as the strongest candidate
 - the original task/prompt where available
 - the relevant edit/test sequence
 - Git/session evidence
-- an honest confidence rating
+- an honest confidence rating (`confirmed`, `strong`, `possible`, or `unknown`)
 
 If that works reliably, the product thesis is validated.

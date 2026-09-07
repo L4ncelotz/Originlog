@@ -1,8 +1,8 @@
-# Contributing to AgentTrace
+# Contributing to Originlog
 
 Thanks for considering a contribution.
 
-AgentTrace is designed around one rule:
+Originlog is designed around one rule:
 
 > Agent-specific formats belong in adapters; provenance logic belongs in the shared core.
 
@@ -20,7 +20,7 @@ Install:
 
 ```bash
 git clone <repository-url>
-cd agenttrace
+cd originlog
 pnpm install
 ```
 
@@ -57,6 +57,7 @@ Read these before substantial changes:
 - `docs/04-DATA-MODEL.md`
 - `docs/05-IMPLEMENTATION.md`
 - `docs/07-TESTING.md`
+- `docs/09-Git-Workflow.md`
 
 ## Contribution Types
 
@@ -192,7 +193,7 @@ If your change affects parsing or provenance, include regression coverage.
 
 ## Privacy and Security
 
-AgentTrace handles potentially sensitive local development history.
+Originlog handles potentially sensitive local development history.
 
 Contributions must preserve these defaults:
 
@@ -210,7 +211,7 @@ Before implementing a large feature, check `docs/08-ROADMAP.md` and open an issu
 
 - user problem
 - proposed behavior
-- why it belongs in AgentTrace
+- why it belongs in Originlog
 - privacy implications
 - architecture impact
 

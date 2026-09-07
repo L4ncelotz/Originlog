@@ -45,16 +45,16 @@ Create a repository that is safe to iterate on.
 ## Commands that must work
 
 ```bash
-agenttrace --help
-agenttrace --version
+originlog --help
+originlog --version
 ```
 
 ## Exit Criteria
 
-- [ ] `pnpm build` passes
-- [ ] `pnpm typecheck` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm test` passes
+- [ ] `npm run build` passes
+- [ ] `npm run typecheck` passes
+- [ ] `npm run lint` passes
+- [ ] `npm test` passes
 - [ ] Git repository root detection is tested
 - [ ] no agent-specific format exists outside adapters
 - [ ] CI runs on pull requests
@@ -77,14 +77,14 @@ agenttrace --version
 
 ## Goal
 
-Make AgentTrace useful as a local viewer of Claude Code sessions.
+Make Originlog useful as a local viewer of Claude Code sessions.
 
 ## Features
 
 ```bash
-agenttrace doctor
-agenttrace sessions
-agenttrace show <session-id>
+originlog doctor
+originlog sessions
+originlog show <session-id>
 ```
 
 ## Supported Agent
@@ -114,7 +114,7 @@ agenttrace show <session-id>
 
 At this stage the project can be described as:
 
-> Explore what your coding agent did during local sessions.
+> Inspect coding agent activity and touched files locally.
 
 Do not yet oversell line-level provenance.
 
@@ -133,7 +133,7 @@ Connect normalized agent activity to repository changes.
 ## Feature
 
 ```bash
-agenttrace diff <session-id>
+originlog diff <session-id>
 ```
 
 ## Deliverables
@@ -173,7 +173,7 @@ Deliver the product-defining feature.
 ## Feature
 
 ```bash
-agenttrace why <file>:<line>
+originlog why <file>:<line>
 ```
 
 ## Deliverables
@@ -190,7 +190,7 @@ agenttrace why <file>:<line>
 
 - [ ] exact fixture edit is identified as strongest candidate
 - [ ] nearby unrelated session is not ranked above exact edit
-- [ ] timestamp-only evidence cannot produce High confidence
+- [ ] timestamp-only evidence cannot produce confirmed or strong confidence
 - [ ] output shows prompt/task where available
 - [ ] output shows evidence
 - [ ] output shows confidence
@@ -201,7 +201,11 @@ agenttrace why <file>:<line>
 
 This is the first version that can confidently use:
 
-> **Git tells you what changed. AgentTrace tells you why.**
+> **Git tells you what changed. Originlog tells you where it came from and why.**
+
+Tagline:
+
+> **Know where a code change came from, and why.**
 
 This is the best point for a polished public launch, demo GIF, and social distribution.
 
@@ -215,7 +219,7 @@ This is the best point for a polished public launch, demo GIF, and social distri
 
 ## Goal
 
-Prove that AgentTrace is not a Claude-specific viewer.
+Prove that Originlog is not a Claude-specific viewer.
 
 ## Add
 
@@ -251,13 +255,13 @@ Make sessions easy to share, understand, and demo visually.
 ## Feature
 
 ```bash
-agenttrace report <session-id>
+originlog report <session-id>
 ```
 
 ## Output
 
 ```text
-agenttrace-report.html
+originlog-report.html
 ```
 
 ## Include
@@ -293,7 +297,7 @@ Reduce friction for users and contributors.
 ## Deliverables
 
 - npm package polished
-- `npx agenttrace` flow
+- `npx originlog` flow
 - demo repository
 - issue templates
 - PR template
@@ -349,7 +353,7 @@ Declare the core data and CLI model stable enough for downstream tooling.
 - [ ] provenance limitations documented
 - [ ] privacy model documented
 - [ ] test matrix covers Windows/macOS/Linux where practical
-- [ ] no known high-severity data-loss/privacy issues
+- [ ] no known critical data-loss/privacy issues
 - [ ] CLI command names are unlikely to change
 
 ## Not Required for v1.0

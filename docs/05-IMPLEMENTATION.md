@@ -40,10 +40,10 @@ prettier
 ### Required scripts
 
 ```bash
-pnpm build
-pnpm typecheck
-pnpm lint
-pnpm test
+npm run build
+npm run typecheck
+npm run lint
+npm test
 ```
 
 ### Definition of done
@@ -53,6 +53,8 @@ node dist/cli.js --help
 ```
 
 works and CI is green.
+
+Note: The bare `originlog` command defaults to showing help text for now; it may later display a quick status summary (similar to `git status`).
 
 ---
 
@@ -241,7 +243,7 @@ Output should cover:
 Example:
 
 ```text
-AgentTrace Doctor
+Originlog
 
 ✓ Git repository detected
 ✓ Claude Code detected     14 sessions
@@ -252,7 +254,7 @@ Repository: /home/user/project
 
 ### Exit condition
 
-A new user can determine whether AgentTrace can see their environment.
+A new user can determine whether Originlog can see their environment.
 
 ---
 
@@ -276,7 +278,7 @@ Return:
 ```ts
 interface SessionMatch {
   session: NormalizedSessionSummary;
-  confidence: "low" | "medium" | "high";
+  confidence: "confirmed" | "strong" | "possible" | "unknown";
   reasons: string[];
 }
 ```
@@ -373,7 +375,7 @@ Index:
 Potential internal command during development:
 
 ```bash
-agenttrace index --rebuild
+originlog index --rebuild
 ```
 
 It does not need to be public in early releases.
@@ -419,11 +421,11 @@ Start with explicit rules, not ML.
 Example direction:
 
 ```text
-+ strong: exact edit range overlap
++ confirmed: exact edit range overlap
 + strong: explicit write + blame commit association
-+ medium: explicit write of target file
-+ medium: close commit/session timing
-+ weak: filename mentioned in command
++ possible: explicit write of target file
++ possible: close commit/session timing
++ unknown: only filename mentioned in command
 ```
 
 Keep weights centralized and unit-tested.
@@ -504,31 +506,38 @@ src/cli/commands/why.ts
 Required output:
 
 - target
-- best candidate agent
-- session id
-- prompt/task
-- evidence
-- confidence
+- origin (agent and session id)
+- intent (prompt/task)
+- evidence timeline
+- related commit
 
 Example:
 
 ```text
-Likely changed by Claude Code
-Session: 8d7fa921
-Confidence: High
+src/auth/token.ts:47
 
-Prompt
-"Fix authentication refresh token"
+Origin
+Claude Code · session 8d7fa921
+
+Intent
+Fix authentication refresh token
 
 Evidence
-- Agent edited src/auth/token.ts
-- Edit overlaps line 47
-- Tests failed, then the same region was edited again
+10:42  read   src/auth/token.ts
+10:42  edit   src/auth/token.ts
+10:42  run    npm test
+10:42  fail   refresh-token.test.ts
+10:43  edit   src/auth/token.ts
+10:43  run    npm test
+10:43  pass
+
+Related commit
+a83cb21
 ```
 
 ### Critical behavior
 
-If provenance is weak, say so.
+If provenance is uncertain or cannot be established, return `unknown` rather than a wrong answer.
 
 ---
 
@@ -568,13 +577,13 @@ Implement only after `why` works.
 Command:
 
 ```bash
-agenttrace report <session-id>
+originlog report <session-id>
 ```
 
 Output:
 
 ```text
-agenttrace-report.html
+originlog-report.html
 ```
 
 Include:
@@ -613,7 +622,7 @@ Do not proceed to richer features if any are true:
 
 - parser crashes on common unknown records
 - `sessions` includes unrelated projects regularly
-- `why` claims high confidence from timestamp-only evidence
+- `why` claims confirmed or strong confidence from timestamp-only evidence
 - tests depend on the developer's machine
 - adapters leak vendor-specific structures into core
 

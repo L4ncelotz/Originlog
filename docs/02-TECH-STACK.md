@@ -22,13 +22,13 @@
 
 ## 2. Why TypeScript + Node.js
 
-AgentTrace is primarily a filesystem, process, parsing, indexing, and CLI project.
+Originlog is primarily a filesystem, process, parsing, indexing, and CLI project.
 
 TypeScript is a strong fit because:
 
 - coding-agent histories are usually JSON/JSONL/text heavy
 - adapters benefit from explicit normalized types
-- npm distribution makes `npx agenttrace` practical
+- npm distribution makes `npx originlog` practical
 - Node has mature filesystem/process libraries
 - development speed is more valuable than low-level optimization for MVP
 
@@ -49,7 +49,7 @@ Reasons:
 The project should still publish a normal npm package so users can run:
 
 ```bash
-npx agenttrace
+npx originlog
 ```
 
 ## 4. CLI — Commander
@@ -66,7 +66,7 @@ Example:
 ```ts
 program
   .command("why")
-  .argument("<location>", "file:line")
+  .argument("<target>", "file, file:line, file:range, or commit")
   .option("--json", "emit machine-readable JSON")
   .action(runWhyCommand);
 ```
@@ -132,7 +132,7 @@ Deleting the database must not destroy user history.
 Suggested location:
 
 ```text
-~/.agenttrace/agenttrace.db
+~/.originlog/originlog.db
 ```
 
 ## 8. Build — tsup
@@ -202,7 +202,7 @@ Preferred options:
 Goal:
 
 ```text
-agenttrace-report.html
+originlog-report.html
 ```
 
 Prefer a single portable file.
@@ -223,6 +223,9 @@ Do not add these without a concrete requirement:
 - authentication libraries
 - hosted analytics SDKs
 - LLM SDKs
+- queues
+- microservices
+- GraphQL
 
 ## 13. Security/Privacy Constraints
 
@@ -271,4 +274,4 @@ Before adding a dependency, answer:
 4. Does it add native/build complexity?
 5. Does it affect CLI startup time?
 
-Prefer a small dependency surface. AgentTrace should feel like a focused developer utility, not a framework showcase.
+Prefer a small dependency surface. Originlog should feel like a focused developer utility, not a framework showcase.

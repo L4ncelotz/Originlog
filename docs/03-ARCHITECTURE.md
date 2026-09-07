@@ -2,7 +2,7 @@
 
 ## 1. Architectural Goal
 
-AgentTrace must support multiple coding agents without letting vendor-specific session formats leak into the rest of the system.
+Originlog must support multiple coding agents without letting vendor-specific session formats leak into the rest of the system.
 
 The architecture is therefore split into five boundaries:
 
@@ -230,7 +230,7 @@ Matching should return a confidence/reason rather than silently treating all nea
 For:
 
 ```bash
-agenttrace why src/auth/token.ts:47
+originlog why src/auth.ts:47
 ```
 
 Use:
@@ -285,7 +285,7 @@ interface Evidence {
 }
 ```
 
-Weights must remain internal implementation details. User-facing output should show qualitative confidence and human-readable evidence.
+Weights must remain internal implementation details. User-facing output should show qualitative confidence (`confirmed`, `strong`, `possible`, `unknown`) and human-readable evidence.
 
 ## 10. Storage Architecture
 
@@ -319,7 +319,7 @@ Run with --debug for details.
 ### No provenance
 
 ```text
-No reliable agent provenance found for src/auth/token.ts:47.
+No reliable provenance found for src/auth.ts:47.
 ```
 
 These are different states and must not collapse into a generic exception.
@@ -329,16 +329,16 @@ These are different states and must not collapse into a generic exception.
 MVP targets:
 
 - CLI help: effectively instant
-- `doctor`: under ~1 second for normal local setups
-- `sessions`: under ~2 seconds after indexing
-- `show`: under ~1 second for normal sessions
-- `why`: ideally under ~2 seconds after indexing
+- `originlog doctor`: under ~1 second for normal local setups
+- `originlog sessions`: under ~2 seconds after indexing
+- `originlog show`: under ~1 second for normal sessions
+- `originlog why`: ideally under ~2 seconds after indexing
 
 Do not optimize prematurely. Measure before adding caching complexity.
 
 ## 13. Privacy Boundary
 
-AgentTrace may read sensitive local history. Therefore:
+Originlog may read sensitive local history. Therefore:
 
 - default outputs should summarize rather than dump entire raw records
 - no network access is required for core commands

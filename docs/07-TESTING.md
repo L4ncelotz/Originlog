@@ -2,7 +2,7 @@
 
 ## 1. Testing Goals
 
-AgentTrace deals with unreliable external session formats and ambiguous provenance. Tests must protect two things above all:
+Originlog deals with unreliable external session formats and ambiguous provenance. Tests must protect two things above all:
 
 1. **Normalization correctness**
 2. **Attribution honesty**
@@ -163,7 +163,7 @@ Expected:
 
 ```text
 candidate = same session
-confidence = high
+confidence = confirmed
 ```
 
 ## Case B — Same file, wrong range
@@ -175,7 +175,7 @@ Expected:
 
 - session may remain a candidate
 - exact-line evidence must be absent
-- confidence should be lower
+- confidence should be lower (possible or unknown)
 
 ## Case C — Timestamp only
 
@@ -184,7 +184,7 @@ Session happened near the commit but does not reference the target file.
 Expected:
 
 ```text
-confidence != high
+confidence != confirmed
 ```
 
 ## Case D — Two agents touch same file
@@ -202,7 +202,7 @@ Agent edits line 47, then human changes it manually before commit.
 
 Expected:
 
-- AgentTrace must avoid claiming current line was definitely authored by the agent
+- Originlog must avoid claiming current line was definitely authored by the agent
 - confidence should fall unless stronger commit/session evidence exists
 
 ## Case F — No usable evidence
@@ -210,21 +210,78 @@ Expected:
 Expected:
 
 ```text
+confidence = unknown
 No reliable agent provenance found.
 ```
 
 ---
 
-# 7. CLI Tests
+# 7. Additional Provenance Edge Cases
+
+When edge cases create ambiguity or break assumptions, Originlog should return `unknown` rather than a wrong answer.
+
+## Case G — Overlapping sessions
+
+Two sessions active during the same time window.
+Expected: Disambiguate using file edit ranges and command sequences; if attribution remains ambiguous, Originlog should return `unknown` rather than a wrong answer.
+
+## Case H — Rebase after agent edit
+
+Agent edits committed, then rebased (changing commit hashes and timestamps).
+Expected: Match by tree content, diff hunks, and commit subject; if history correlation cannot be established, Originlog should return `unknown` rather than a wrong answer.
+
+## Case I — Amended commit
+
+Agent's commit amended by human.
+Expected: Detect discrepancy between session touch evidence and final commit author/tree; Originlog should return `unknown` rather than a wrong answer.
+
+## Case J — File rename
+
+Agent edits file that is later renamed.
+Expected: Trace rename history through Git log; if rename continuity cannot be resolved, Originlog should return `unknown` rather than a wrong answer.
+
+## Case K — Deleted file
+
+Agent edits file that no longer exists.
+Expected: Handle missing target gracefully; if historical provenance cannot be confirmed, Originlog should return `unknown` rather than a wrong answer.
+
+## Case L — Partial logs
+
+Agent session data is incomplete/truncated.
+Expected: Parse available records safely without crashing; if key touch events are missing, Originlog should return `unknown` rather than a wrong answer.
+
+## Case M — Missing timestamps
+
+Events lack reliable timing.
+Expected: Rely on event sequence and file edit content; if temporal ordering is indeterminate, Originlog should return `unknown` rather than a wrong answer.
+
+## Case N — Clock mismatch
+
+System clock differs from Git timestamps.
+Expected: Tolerate bounded skew; if timestamp discrepancies prevent reliable correlation, Originlog should return `unknown` rather than a wrong answer.
+
+## Case O — Generated files
+
+Agent triggers code generation that creates files.
+Expected: Differentiate direct tool writes from indirect generator output; if causality is unclear, Originlog should return `unknown` rather than a wrong answer.
+
+## Case P — Repeated test failures
+
+Test command fails multiple times before passing.
+Expected: Treat the retry sequence as intent and iteration evidence; if edits cannot be tied to the final state, Originlog should return `unknown` rather than a wrong answer.
+
+---
+
+# 8. CLI Tests
 
 Prefer testing command handlers as functions rather than spawning a process for every test.
 
 Use process-level smoke tests for:
 
 ```text
-agenttrace --help
-agenttrace doctor
-agenttrace sessions --json
+originlog --help
+originlog doctor
+originlog sessions --json
 ```
 
 ## Snapshot Testing
@@ -245,7 +302,7 @@ Avoid snapshotting:
 
 ---
 
-# 8. Database Tests
+# 9. Database Tests
 
 When SQLite is added:
 
@@ -262,7 +319,7 @@ Use temporary database files.
 
 ---
 
-# 9. Cross-Platform Testing
+# 10. Cross-Platform Testing
 
 At minimum, GitHub Actions should eventually cover:
 
@@ -283,7 +340,7 @@ Particularly test:
 
 ---
 
-# 10. Performance Tests
+# 11. Performance Tests
 
 Do not benchmark too early.
 
@@ -308,7 +365,7 @@ Only optimize after identifying actual bottlenecks.
 
 ---
 
-# 11. Security/Privacy Tests
+# 12. Security/Privacy Tests
 
 Check that:
 
@@ -332,7 +389,7 @@ The Git/process layer must treat them as data, not shell syntax.
 
 ---
 
-# 12. Release Acceptance Checklist
+# 13. Release Acceptance Checklist
 
 Before release:
 
@@ -351,7 +408,7 @@ Before release:
 
 ## Special Gate for `v0.3.0`
 
-Before shipping `agenttrace why`, manually verify at least these three scenarios:
+Before shipping `originlog why`, manually verify at least these three scenarios:
 
 1. obvious exact agent edit
 2. ambiguous multi-session edit

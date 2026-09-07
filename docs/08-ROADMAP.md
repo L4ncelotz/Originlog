@@ -36,9 +36,9 @@ Priority: **High**
 Examples:
 
 ```bash
-agenttrace sessions --json
-agenttrace show <id> --json
-agenttrace why src/auth.ts:47 --json
+originlog sessions --json
+originlog show <id> --json
+originlog why src/auth.ts:47 --json
 ```
 
 Benefits:
@@ -59,7 +59,7 @@ Priority: **High after v0.3**
 Command:
 
 ```bash
-agenttrace report <session-id>
+originlog report <session-id>
 ```
 
 Goal:
@@ -104,7 +104,7 @@ Add only after the adapter model is stable with two agents.
 Possible command:
 
 ```bash
-agenttrace activity
+originlog activity
 ```
 
 Example:
@@ -126,8 +126,8 @@ Avoid turning this into a vanity dashboard. It should answer useful review/debug
 Possible commands:
 
 ```bash
-agenttrace search "refresh token"
-agenttrace sessions --file src/auth.ts
+originlog search "refresh token"
+originlog sessions --file src/auth.ts
 ```
 
 Useful once users have hundreds of sessions.
@@ -139,7 +139,7 @@ Useful once users have hundreds of sessions.
 Potential:
 
 ```bash
-agenttrace export <session-id>
+originlog export <session-id>
 ```
 
 Produces sanitized/portable data for bug reports or sharing.
@@ -155,7 +155,7 @@ Priority: **Medium/Low until CLI proves demand**
 Potential UX:
 
 - gutter indicator for known AI provenance
-- command palette: “AgentTrace: Why this line?”
+- command palette: “Originlog: Why this line?”
 - open session timeline
 - show prompt/evidence panel
 
@@ -204,7 +204,7 @@ Do not build before strong demand.
 Potential package:
 
 ```text
-@agenttrace/adapter-sdk
+@originlog/adapter-sdk
 ```
 
 Only create this once at least 3 adapters reveal a stable contract.
@@ -240,7 +240,7 @@ These features may improve OSS adoption if they remain useful rather than gimmic
 Example:
 
 ```bash
-npx agenttrace demo
+npx originlog demo
 ```
 
 Creates or opens a synthetic session/report so users understand the product without exposing their history.
@@ -287,6 +287,9 @@ Do not build these unless the project direction changes materially:
 - team productivity score
 - developer ranking based on AI usage
 - opaque “AI contribution percentage” metric
+- prompt management system
+- token-cost tracker
+- team management system
 
 These distract from provenance and make correctness harder to defend.
 
@@ -307,4 +310,4 @@ These distract from provenance and make correctness harder to defend.
 10. team/CI only if demanded
 ```
 
-The project wins by being the most understandable and trustworthy tool for coding-agent provenance, not by having the largest feature list.
+The project wins by being the most understandable and trustworthy tool for code provenance, not by having the largest feature list.
