@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { extractFileTouches } from "../../../../src/core/events.js";
 import {
   parseClaudeSession,
   parseClaudeSessionSummary,
@@ -238,7 +239,7 @@ describe("parseClaudeSession", () => {
     expect(session.events).toHaveLength(1);
   });
 
-  it("excludes failed tool actions via pre-pass on tool_result", () => {
+  it("preserves failed write attempts as evidence with success=false and metadata", () => {
     const lines = [
       JSON.stringify({
         type: "user",
@@ -282,14 +283,84 @@ describe("parseClaudeSession", () => {
     ].join("\n");
 
     const session = parseClaudeSession("s-fail", lines, "/path.jsonl");
-    // Should have prompt and error result, but NO write event
-    const writeEvents = session.events.filter((e) => e.type === "write");
-    expect(writeEvents).toHaveLength(0);
 
+    // The write event IS preserved as an attempted action with success=false
+    const writeEvents = session.events.filter((e) => e.type === "write");
+    expect(writeEvents).toHaveLength(1);
+    expect(writeEvents[0]?.success).toBe(false);
+    expect(writeEvents[0]?.file).toBe("src/auth.ts");
+    expect(writeEvents[0]?.metadata).toMatchObject({
+      attempted: true,
+      failed: true,
+      error: "Permission denied",
+    });
+
+    // Followed by the error tool_result event
     const errorEvents = session.events.filter((e) => e.type === "error");
     expect(errorEvents).toHaveLength(1);
     expect(errorEvents[0]?.success).toBe(false);
     expect(errorEvents[0]?.content).toBe("Permission denied");
+
+    // But extractFileTouches does NOT count it as a successful file write!
+    const touches = extractFileTouches(session.id, session.events);
+    expect(touches).toHaveLength(1);
+    expect(touches[0]?.file).toBe("src/auth.ts");
+    expect(touches[0]?.written).toBe(false);
+  });
+
+  it("preserves failed Bash/test command attempts with success=false followed by error result", () => {
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        sessionId: "s-fail-cmd",
+        uuid: "u-1",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_fail_test",
+              name: "Bash",
+              input: { command: "npm test" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        sessionId: "s-fail-cmd",
+        uuid: "u-2",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_fail_test",
+              content: "FAIL: 2 tests failed",
+              is_error: true,
+            },
+          ],
+        },
+      }),
+    ].join("\n");
+
+    const session = parseClaudeSession("s-fail-cmd", lines, "/path.jsonl");
+    expect(session.events).toHaveLength(2);
+
+    const testEvent = session.events[0];
+    expect(testEvent?.type).toBe("test");
+    expect(testEvent?.command).toBe("npm test");
+    expect(testEvent?.success).toBe(false);
+    expect(testEvent?.metadata).toMatchObject({
+      attempted: true,
+      failed: true,
+      error: "FAIL: 2 tests failed",
+    });
+
+    const errorResult = session.events[1];
+    expect(errorResult?.type).toBe("error");
+    expect(errorResult?.success).toBe(false);
+    expect(errorResult?.content).toBe("FAIL: 2 tests failed");
   });
 
   it("handles missing timestamps without fabricating them", () => {

@@ -7,7 +7,7 @@
  * Follows core principles:
  * - Tolerant of schema evolution and unknown event types.
  * - Missing data remains unknown (timestamps are never fabricated).
- * - Pre-pass excludes failed tool actions so failed edits do not count as work.
+ * - Preserves failed tool attempts as evidence with success=false and metadata.
  * - Resumed session entries are deduplicated by UUID.
  * - Resolves canonical sessionId upfront so every event matches the session ID.
  * - Line ranges are strictly validated as 1-based data (startLine >= 1, endLine >= startLine).
@@ -166,8 +166,8 @@ export function parseClaudeSession(
     parsedLines.push(parsed);
   }
 
-  // Pre-pass 1: collect tool_use IDs that ended in an error
-  const failedToolIds = new Set<string>();
+  // Pre-pass 1: collect tool_use IDs that ended in an error and their error messages
+  const failedTools = new Map<string, { errorMessage?: string }>();
   for (const line of parsedLines) {
     const content = line.message?.content;
     if (Array.isArray(content)) {
@@ -180,7 +180,15 @@ export function parseClaudeSession(
           "tool_use_id" in block &&
           typeof block.tool_use_id === "string"
         ) {
-          failedToolIds.add(block.tool_use_id);
+          let errorText: string | undefined;
+          if ("content" in block) {
+            if (typeof block.content === "string") {
+              errorText = block.content;
+            } else if (block.content !== undefined) {
+              errorText = JSON.stringify(block.content);
+            }
+          }
+          failedTools.set(block.tool_use_id, { errorMessage: errorText });
         }
       }
     }
@@ -254,7 +262,9 @@ export function parseClaudeSession(
         ) {
           continue;
         }
-        if (failedToolIds.has(block.id)) continue;
+
+        const failure = failedTools.get(block.id);
+        const isFailed = failure !== undefined;
 
         const name =
           "name" in block && typeof block.name === "string"
@@ -338,6 +348,15 @@ export function parseClaudeSession(
           metadata = { tool: name, input };
         }
 
+        if (isFailed) {
+          metadata = {
+            ...metadata,
+            attempted: true,
+            failed: true,
+            ...(failure?.errorMessage ? { error: failure.errorMessage } : {}),
+          };
+        }
+
         events.push(
           createNormalizedEvent({
             id: block.id,
@@ -347,6 +366,7 @@ export function parseClaudeSession(
             command,
             content,
             range,
+            success: !isFailed,
             timestamp: lineTs,
             metadata,
           }),

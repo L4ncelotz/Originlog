@@ -183,7 +183,12 @@ export function summarizeSession(
   const events = session.events ?? [];
   const uniqueFiles = new Set<string>();
   for (const event of events) {
-    if (event && typeof event.file === "string" && event.file.length > 0) {
+    if (
+      event &&
+      typeof event.file === "string" &&
+      event.file.length > 0 &&
+      event.success !== false
+    ) {
       uniqueFiles.add(event.file);
     }
   }

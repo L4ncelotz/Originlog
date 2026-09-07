@@ -172,6 +172,18 @@ describe("extractFileTouches", () => {
     expect(touch!.written).toBe(true);
     expect(touch!.read).toBe(false);
   });
+  it("does not mark written=true when write event has success=false", () => {
+    const events = [
+      event("a", "s1", "write", {
+        file: "src/auth.ts",
+        timestamp: new Date(20),
+        success: false,
+      }),
+    ];
+    const [touch] = extractFileTouches("s1", events);
+    expect(touch!.written).toBe(false);
+    expect(touch!.read).toBe(false);
+  });
 
   it("combines read and write into a single touch with both flags true", () => {
     const events = [
