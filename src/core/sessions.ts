@@ -238,17 +238,21 @@ function cleanPathSegments(pathStr: string): string {
   if (!pathStr) return "";
   let p = pathStr.replace(/\\/g, "/");
 
-  const isWindows = /^[a-zA-Z]:/.test(p);
-  const isPosixAbsolute = p.startsWith("/");
+  const isWindowsDrive = /^[a-zA-Z]:/.test(p);
+  const isUnc = p.startsWith("//") && !p.startsWith("///");
+  const isPosixAbsolute = !isUnc && p.startsWith("/");
   let prefix = "";
 
-  if (isWindows) {
+  if (isWindowsDrive) {
     prefix = p.slice(0, 2);
+    p = p.slice(2);
+  } else if (isUnc) {
+    prefix = "//";
     p = p.slice(2);
   }
 
-  const isAbsolute = isPosixAbsolute || (isWindows && p.startsWith("/"));
-  if (isWindows && p.startsWith("/")) {
+  const isAbsolute = isPosixAbsolute || isUnc || (isWindowsDrive && p.startsWith("/"));
+  if (isWindowsDrive && p.startsWith("/")) {
     prefix += "/";
     p = p.slice(1);
   } else if (isPosixAbsolute) {
@@ -262,7 +266,11 @@ function cleanPathSegments(pathStr: string): string {
   for (const part of parts) {
     if (part === ".") continue;
     if (part === "..") {
-      if (resolved.length > 0 && resolved[resolved.length - 1] !== "..") {
+      if (isUnc) {
+        if (resolved.length > 2) {
+          resolved.pop();
+        }
+      } else if (resolved.length > 0 && resolved[resolved.length - 1] !== "..") {
         resolved.pop();
       } else if (!isAbsolute) {
         resolved.push("..");
@@ -272,9 +280,37 @@ function cleanPathSegments(pathStr: string): string {
     }
   }
 
+  if (isUnc && resolved.length < 2) {
+    return "";
+  }
+
   const result = prefix + resolved.join("/");
   if (!result && isAbsolute) return prefix;
   return result;
+}
+
+function isWindowsPath(p: string): boolean {
+  return /^[a-zA-Z]:/.test(p) || p.startsWith("//");
+}
+
+function isValidRepoRoot(normalizedRepo: string): boolean {
+  if (!normalizedRepo || normalizedRepo.trim().length === 0) {
+    return false;
+  }
+  if (
+    normalizedRepo === "." ||
+    normalizedRepo === ".." ||
+    normalizedRepo.startsWith("./") ||
+    normalizedRepo.startsWith("../")
+  ) {
+    return false;
+  }
+  const isWindowsDrive = /^[a-zA-Z]:(\/|$)/.test(normalizedRepo);
+  const isUnc = /^\/\/[^/]+\/[^/]+(\/|$)/.test(normalizedRepo);
+  const isPosixAbsolute =
+    normalizedRepo.startsWith("/") && !normalizedRepo.startsWith("//");
+
+  return isWindowsDrive || isUnc || isPosixAbsolute;
 }
 
 export function normalizePath(filePath: string, repoRoot?: string): string {
@@ -287,7 +323,7 @@ export function normalizePath(filePath: string, repoRoot?: string): string {
     const resolvedRoot = cleanPathSegments(repoRoot);
     if (resolvedRoot) {
       const isWindows =
-        /^[a-zA-Z]:/.test(resolvedPath) || /^[a-zA-Z]:/.test(resolvedRoot);
+        isWindowsPath(resolvedPath) || isWindowsPath(resolvedRoot);
       const pComp = isWindows ? resolvedPath.toLowerCase() : resolvedPath;
       const rComp = isWindows ? resolvedRoot.toLowerCase() : resolvedRoot;
 
@@ -352,6 +388,20 @@ export function matchSessionToRepository(
   }
 
   const normalizedRepo = cleanPathSegments(repoRoot);
+  if (!isValidRepoRoot(normalizedRepo)) {
+    const rawProjPath =
+      session.projectPath ?? ("repoRoot" in session ? session.repoRoot : undefined);
+    return {
+      matched: false,
+      reason: "Repository root path is invalid.",
+      repoRoot: normalizedRepo,
+      sessionPath:
+        typeof rawProjPath === "string" && rawProjPath.trim().length > 0
+          ? cleanPathSegments(rawProjPath)
+          : undefined,
+    };
+  }
+
   const rawPath =
     session.projectPath ?? ("repoRoot" in session ? session.repoRoot : undefined);
 
@@ -375,7 +425,7 @@ export function matchSessionToRepository(
   }
 
   const isWindows =
-    /^[a-zA-Z]:/.test(normalizedSession) || /^[a-zA-Z]:/.test(normalizedRepo);
+    isWindowsPath(normalizedSession) || isWindowsPath(normalizedRepo);
   const sComp = isWindows ? normalizedSession.toLowerCase() : normalizedSession;
   const rComp = isWindows ? normalizedRepo.toLowerCase() : normalizedRepo;
 

@@ -194,6 +194,48 @@ describe("matchSessionToRepository", () => {
       expect(match.repoRoot).toBe("");
     });
 
+    it("rejects repoRoot '.' and does not match arbitrary absolute session paths", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-abs",
+        agent: "claude",
+        projectPath: "/work/my-project",
+      };
+
+      const match = matchSessionToRepository(session, ".");
+
+      expect(match.matched).toBe(false);
+      expect(match.reason).toBe("Repository root path is invalid.");
+    });
+
+    it("rejects repoRoot 'foo/..' and does not become a universal '/' prefix match", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-abs-2",
+        agent: "claude",
+        projectPath: "/work/my-project",
+      };
+
+      const match = matchSessionToRepository(session, "foo/..");
+
+      expect(match.matched).toBe(false);
+      expect(match.reason).toBe("Repository root path is invalid.");
+    });
+
+    it("rejects relative repoRoot paths without throwing", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-rel",
+        agent: "claude",
+        projectPath: "/work/my-project",
+      };
+
+      const matchDotDot = matchSessionToRepository(session, "..");
+      expect(matchDotDot.matched).toBe(false);
+      expect(matchDotDot.reason).toBe("Repository root path is invalid.");
+
+      const matchRel = matchSessionToRepository(session, "some/relative/path");
+      expect(matchRel.matched).toBe(false);
+      expect(matchRel.reason).toBe("Repository root path is invalid.");
+    });
+
     it("falls back to session.repoRoot when session.projectPath is undefined", () => {
       const session: NormalizedSession = {
         id: "sess-reporoot-fallback",
@@ -272,6 +314,97 @@ describe("matchSessionToRepository", () => {
       expect(match.reason).toBe(
         'Working directory is inside repository subdirectory "Packages/Web".',
       );
+    });
+  });
+
+  describe("Windows UNC paths", () => {
+    it("matches exact UNC path", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-unc-exact",
+        agent: "claude",
+        projectPath: "\\\\server\\share\\repo",
+      };
+
+      const match = matchSessionToRepository(session, "\\\\server\\share\\repo");
+
+      expect(match.matched).toBe(true);
+      expect(match.reason).toBe("Working directory exactly matches repository root.");
+      expect(match.repoRoot).toBe("//server/share/repo");
+      expect(match.sessionPath).toBe("//server/share/repo");
+    });
+
+    it("matches UNC descendant subdirectory", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-unc-sub",
+        agent: "claude",
+        projectPath: "\\\\Server\\Share\\Repo\\packages\\web",
+      };
+
+      const match = matchSessionToRepository(session, "\\\\server\\share\\repo");
+
+      expect(match.matched).toBe(true);
+      expect(match.reason).toBe(
+        'Working directory is inside repository subdirectory "packages/web".',
+      );
+      expect(match.repoRoot).toBe("//server/share/repo");
+      expect(match.sessionPath).toBe("//Server/Share/Repo/packages/web");
+    });
+
+    it("matches UNC paths using Windows case-insensitive semantics", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-unc-case",
+        agent: "claude",
+        projectPath: "\\\\SERVER\\SHARE\\REPO",
+      };
+
+      const match = matchSessionToRepository(session, "\\\\server\\share\\repo");
+
+      expect(match.matched).toBe(true);
+      expect(match.reason).toBe("Working directory exactly matches repository root.");
+    });
+
+    it("does NOT match UNC prefix collision", () => {
+      // \\server\share\repo vs \\server\share\repository
+      const session: NormalizedSessionSummary = {
+        id: "sess-unc-prefix",
+        agent: "claude",
+        projectPath: "\\\\server\\share\\repository",
+      };
+
+      const match = matchSessionToRepository(session, "\\\\server\\share\\repo");
+
+      expect(match.matched).toBe(false);
+      expect(match.reason).toBe("Working directory is outside repository.");
+    });
+
+    it("does NOT treat UNC paths as POSIX paths", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-posix-unc",
+        agent: "claude",
+        projectPath: "/server/share/repo",
+      };
+
+      const match = matchSessionToRepository(session, "\\\\server\\share\\repo");
+
+      expect(match.matched).toBe(false);
+      expect(match.reason).toBe("Working directory is outside repository.");
+    });
+
+    it("handles UNC path normalization with trailing slashes and .. segments", () => {
+      const session: NormalizedSessionSummary = {
+        id: "sess-unc-norm",
+        agent: "claude",
+        projectPath: "\\\\server\\share\\repo\\packages\\core\\..\\web\\",
+      };
+
+      const match = matchSessionToRepository(session, "\\\\server\\share\\repo\\");
+
+      expect(match.matched).toBe(true);
+      expect(match.reason).toBe(
+        'Working directory is inside repository subdirectory "packages/web".',
+      );
+      expect(match.repoRoot).toBe("//server/share/repo");
+      expect(match.sessionPath).toBe("//server/share/repo/packages/web");
     });
   });
 });
