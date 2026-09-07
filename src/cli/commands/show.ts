@@ -17,9 +17,11 @@ import { isGitRepository, getRepoRoot } from "../../git/index.js";
 import { getAdapters } from "../../adapters/registry.js";
 import { renderSessionTimeline } from "../../ui/timeline.js";
 import type { AdapterContext, AgentAdapter } from "../../adapters/types.js";
-import type {
-  NormalizedSession,
-  NormalizedSessionSummary,
+import {
+  matchSessionToRepository,
+  filterSessionsForRepository,
+  type NormalizedSession,
+  type NormalizedSessionSummary,
 } from "../../core/sessions.js";
 
 /**
@@ -61,13 +63,23 @@ export async function resolveSession(
   }
 
   const adapters = options.adapters ?? getAdapters();
+  const repoRoot = context.repoRoot?.trim() ? context.repoRoot : undefined;
 
   // 1. Direct load attempt (exact full ID or exact file basename)
   for (const adapter of adapters) {
     try {
       const session = await adapter.loadSession(trimmedId, context);
       if (session) {
-        return { session, adapter };
+        if (repoRoot) {
+          const repoMatch = matchSessionToRepository(session, repoRoot);
+          if (repoMatch.matched) {
+            return { session, adapter };
+          }
+          // Direct load found a session, but it belongs to another repository!
+          // Skip returning it; continue searching or fail with Session not found.
+        } else {
+          return { session, adapter };
+        }
       }
     } catch {
       // Direct load failed, continue to candidate search
@@ -85,7 +97,11 @@ export async function resolveSession(
       const detection = await adapter.detect(context);
       if (detection.detected) {
         const summaries = await adapter.listSessions(context);
-        for (const s of summaries) {
+        const scopedSummaries = repoRoot
+          ? filterSessionsForRepository(summaries, repoRoot)
+          : summaries;
+
+        for (const s of scopedSummaries) {
           if (s.id === trimmedId || s.id.startsWith(trimmedId)) {
             candidateMatches.push({ summary: s, adapter });
           }
@@ -110,8 +126,17 @@ export async function resolveSession(
   const match = candidateMatches[0]!;
   try {
     const session = await match.adapter.loadSession(match.summary.id, context);
+    if (repoRoot) {
+      const repoMatch = matchSessionToRepository(session, repoRoot);
+      if (!repoMatch.matched) {
+        throw new Error(`Session not found: ${trimmedId}`);
+      }
+    }
     return { session, adapter: match.adapter };
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith("Session not found:")) {
+      throw err;
+    }
     throw new Error(
       `Failed to load session "${match.summary.id}": ${
         err instanceof Error ? err.message : String(err)

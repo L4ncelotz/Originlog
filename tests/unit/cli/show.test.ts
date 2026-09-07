@@ -165,6 +165,83 @@ describe("resolveSession", () => {
     expect(result.session.id).toBe("codex-sess-1");
     expect(result.adapter.id).toBe("codex");
   });
+  describe("repository scoping", () => {
+    const repoA = "/work/repoA";
+    const repoB = "/work/repoB";
+
+    const sessionA: NormalizedSession = {
+      id: "a84f29c1-1111-489a-bcde-1234567890ab",
+      agent: "Claude Code",
+      projectPath: repoA,
+      events: [],
+    };
+
+    const sessionB: NormalizedSession = {
+      id: "a84f29c1-2222-489a-bcde-1234567890ab",
+      agent: "Claude Code",
+      projectPath: repoB,
+      events: [],
+    };
+
+    const multiRepoAdapter: AgentAdapter = {
+      id: "claude",
+      displayName: "Claude Code",
+      detect: async () => ({ detected: true, sourcePaths: [] }),
+      listSessions: async () => [
+        { id: sessionA.id, agent: "claude", projectPath: repoA },
+        { id: sessionB.id, agent: "claude", projectPath: repoB },
+      ],
+      loadSession: async (id) => {
+        if (id === sessionA.id) return sessionA;
+        if (id === sessionB.id) return sessionB;
+        throw new Error("Not found");
+      },
+    };
+
+    it("resolves short-ID prefix reliably when the same prefix exists in two different repositories", async () => {
+      // Inside repoA, only sessionA should be considered
+      const contextA: AdapterContext = {
+        cwd: repoA,
+        repoRoot: repoA,
+        homeDir: "/mock/home",
+      };
+
+      const result = await resolveSession("a84f29c1", contextA, {
+        adapters: [multiRepoAdapter],
+      });
+
+      expect(result.session.id).toBe(sessionA.id);
+      expect(result.session.projectPath).toBe(repoA);
+    });
+
+    it("rejects full ID from another repository while inside the current repo (direct load does not bypass scope)", async () => {
+      const contextA: AdapterContext = {
+        cwd: repoA,
+        repoRoot: repoA,
+        homeDir: "/mock/home",
+      };
+
+      // Attempt to load sessionB's full ID while inside repoA
+      await expect(
+        resolveSession(sessionB.id, contextA, { adapters: [multiRepoAdapter] }),
+      ).rejects.toThrowError(`Session not found: ${sessionB.id}`);
+    });
+
+    it("retains global behavior when no repoRoot is available", async () => {
+      const globalContext: AdapterContext = {
+        cwd: "/unrelated/cwd",
+        homeDir: "/mock/home",
+        repoRoot: undefined,
+      };
+
+      // With no repoRoot, exact ID of sessionB loads directly
+      const result = await resolveSession(sessionB.id, globalContext, {
+        adapters: [multiRepoAdapter],
+      });
+
+      expect(result.session.id).toBe(sessionB.id);
+    });
+  });
 
   it("rejects empty or whitespace sessionId", async () => {
     await expect(resolveSession("", dummyContext)).rejects.toThrowError(
