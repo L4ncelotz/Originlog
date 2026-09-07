@@ -71,26 +71,3 @@ playwright-report/
 # Generated reports
 reports/
 originlog-report.html
-
-# ============================================================
-# Internal project documentation
-# ============================================================
-docs/*.md
-
-# Public Markdown files
-!README.md
-!CONTRIBUTING.md
-!CHANGELOG.md
-!SECURITY.md
-!CODE_OF_CONDUCT.md
-
-# ============================================================
-# Internal planning files
-# ============================================================
-# AGENTTRACE_PROJECT_PLAN.md deleted — provenance lives in docs/ only
-
-# Local notes
-notes/
-.notes/
-TODO.local.md
-SCRATCH.md
