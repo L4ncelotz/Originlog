@@ -120,7 +120,7 @@ async function checkPath(
  * Safely scan a directory for session files (.json and .jsonl).
  * Recursively scans one level of subdirectories (e.g. projects/<id>/).
  */
-async function scanSessionFiles(
+export async function scanSessionFiles(
   dir: string,
   warnings: string[],
 ): Promise<string[]> {
