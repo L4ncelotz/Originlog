@@ -214,14 +214,35 @@ describe("normalizePath", () => {
   it("collapses consecutive slashes", () => {
     expect(normalizePath("src//auth///token.ts")).toBe("src/auth/token.ts");
   });
-  it("resolves .. inside repo before checking containment", () => {
+  it("resolves .. inside repo before checking containment (/repo/src/../a.ts inside /repo -> a.ts)", () => {
     expect(normalizePath("/repo/src/../a.ts", "/repo")).toBe("a.ts");
+    expect(normalizePath("/repo/src/../a.ts", "/repo/")).toBe("a.ts");
+    expect(normalizePath("/repo/src/../a.ts", "/other/../repo")).toBe("a.ts");
     expect(normalizePath("C:\\repo\\src\\..\\a.ts", "C:\\repo")).toBe("a.ts");
+    expect(normalizePath("C:\\repo\\src\\..\\a.ts", "C:\\repo\\")).toBe("a.ts");
+    expect(normalizePath("c:\\repo\\src\\..\\a.ts", "C:\\repo")).toBe("a.ts");
+    expect(normalizePath("C:\\repo\\src\\..\\a.ts", "c:\\repo")).toBe("a.ts");
+    expect(normalizePath("C:\\repo\\src\\..\\a.ts", "C:\\other\\..\\repo")).toBe(
+      "a.ts",
+    );
   });
 
-  it("keeps paths that navigate outside the repo as absolute paths", () => {
+  it("keeps paths that navigate outside the repo as absolute paths (/repo/../outside.ts)", () => {
     expect(normalizePath("/repo/../outside.ts", "/repo")).toBe("/outside.ts");
+    expect(normalizePath("/repo/../outside.ts", "/repo/")).toBe("/outside.ts");
+    expect(normalizePath("/repo/../outside.ts", "/other/../repo")).toBe(
+      "/outside.ts",
+    );
     expect(normalizePath("C:\\repo\\..\\outside.ts", "C:\\repo")).toBe(
+      "C:/outside.ts",
+    );
+    expect(normalizePath("C:\\repo\\..\\outside.ts", "C:\\repo\\")).toBe(
+      "C:/outside.ts",
+    );
+    expect(normalizePath("c:\\repo\\..\\outside.ts", "C:\\repo")).toBe(
+      "c:/outside.ts",
+    );
+    expect(normalizePath("C:\\repo\\..\\outside.ts", "C:\\other\\..\\repo")).toBe(
       "C:/outside.ts",
     );
   });
