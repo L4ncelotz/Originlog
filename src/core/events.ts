@@ -58,7 +58,7 @@ export interface NormalizedEvent {
   command?: string;
   /** Free-form payload (file diff, tool output, etc.). */
   content?: string;
-  /** Whether a `command` or `test` event succeeded. */
+  /** Whether a command, test, write, or other tool action succeeded. */
   success?: boolean;
   /** Line range touched by the event (for `read` and `write` events). */
   range?: LineRange;
@@ -205,9 +205,9 @@ export function extractFileTouches(
       touchesByFile.set(file, touch);
     }
 
-    if (event.type === "read") {
+    if (event.type === "read" && event.success !== false) {
       touch.read = true;
-    } else if (event.type === "write") {
+    } else if (event.type === "write" && event.success !== false) {
       touch.written = true;
     }
 
@@ -226,7 +226,7 @@ export function extractFileTouches(
       }
     }
 
-    if (event.range) {
+    if (event.range && event.success !== false) {
       touch.ranges.push({ ...event.range });
     }
   }
