@@ -1,0 +1,47 @@
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+      patch:
+        target: 70%
+    patch:
+      default:
+        target: 70%
+      changes:
+        target: 80%
+    changes:
+      default: true
+
+ignore:
+  - "tests/**"
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "dist/**"
+  - "node_modules/**"
+
+comment:
+  layout: "header, diff, components"
+  behavior: default
+
+component_management:
+  individual_components:
+    - component_id: cli
+      name: "CLI"
+      paths:
+        - "src/**"
+      statuses:
+        - type: project
+          target: 80%
+        - type: patch
+          target: 70%
+        - type: changes
+          target: 80%
