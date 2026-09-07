@@ -303,3 +303,136 @@ export function normalizePath(filePath: string, repoRoot?: string): string {
 
   return resolvedPath;
 }
+
+/**
+ * Match result explaining whether and why a session belongs to a repository.
+ */
+export interface RepositorySessionMatch {
+  /** Whether the session was matched to the repository. */
+  matched: boolean;
+  /** Human-readable explanation of why the session matched or failed to match. */
+  reason: string;
+  /** Normalized Git repository root path against which the session was checked. */
+  repoRoot: string;
+  /** The session's normalized working directory / project path, if available. */
+  sessionPath?: string;
+}
+
+/**
+ * Any session representation that contains working directory / repository evidence.
+ */
+export type MatchableSession = NormalizedSession | NormalizedSessionSummary;
+
+/**
+ * Determine whether a single session belongs to the specified repository.
+ *
+ * Evidence-driven and conservative:
+ * - Matches if session working directory equals repository root.
+ * - Matches if session working directory is a descendant of repository root.
+ * - Does not match similar path prefixes (/work/app vs /work/application).
+ * - Does not match on close timestamps or similar names.
+ * - Returns matched=false when path evidence is missing.
+ */
+export function matchSessionToRepository(
+  session: MatchableSession,
+  repoRoot: string,
+): RepositorySessionMatch {
+  if (typeof repoRoot !== "string" || repoRoot.trim().length === 0) {
+    const rawProjPath =
+      session.projectPath ?? ("repoRoot" in session ? session.repoRoot : undefined);
+    return {
+      matched: false,
+      reason: "Repository root path is required.",
+      repoRoot: "",
+      sessionPath:
+        typeof rawProjPath === "string" && rawProjPath.trim().length > 0
+          ? cleanPathSegments(rawProjPath)
+          : undefined,
+    };
+  }
+
+  const normalizedRepo = cleanPathSegments(repoRoot);
+  const rawPath =
+    session.projectPath ?? ("repoRoot" in session ? session.repoRoot : undefined);
+
+  if (typeof rawPath !== "string" || rawPath.trim().length === 0) {
+    return {
+      matched: false,
+      reason: "Session has no working directory or project path evidence.",
+      repoRoot: normalizedRepo,
+      sessionPath: undefined,
+    };
+  }
+
+  const normalizedSession = cleanPathSegments(rawPath);
+  if (!normalizedSession) {
+    return {
+      matched: false,
+      reason: "Session has no working directory or project path evidence.",
+      repoRoot: normalizedRepo,
+      sessionPath: undefined,
+    };
+  }
+
+  const isWindows =
+    /^[a-zA-Z]:/.test(normalizedSession) || /^[a-zA-Z]:/.test(normalizedRepo);
+  const sComp = isWindows ? normalizedSession.toLowerCase() : normalizedSession;
+  const rComp = isWindows ? normalizedRepo.toLowerCase() : normalizedRepo;
+
+  // Exact match
+  if (sComp === rComp) {
+    return {
+      matched: true,
+      reason: "Working directory exactly matches repository root.",
+      repoRoot: normalizedRepo,
+      sessionPath: normalizedSession,
+    };
+  }
+
+  // Descendant subdirectory match (using guarded prefix boundary to prevent prefix substring collision)
+  const rootPrefix = rComp.endsWith("/") ? rComp : `${rComp}/`;
+  if (sComp.startsWith(rootPrefix)) {
+    const relativeSubdir = normalizedSession.slice(rootPrefix.length);
+    return {
+      matched: true,
+      reason: `Working directory is inside repository subdirectory "${relativeSubdir}".`,
+      repoRoot: normalizedRepo,
+      sessionPath: normalizedSession,
+    };
+  }
+
+  // Outside repository (different directory, ancestor directory, or prefix collision)
+  return {
+    matched: false,
+    reason: "Working directory is outside repository.",
+    repoRoot: normalizedRepo,
+    sessionPath: normalizedSession,
+  };
+}
+
+/**
+ * Filter an array of sessions, returning only those that belong to the repository.
+ * Preserves the input array order deterministically.
+ */
+export function filterSessionsForRepository<T extends MatchableSession>(
+  sessions: readonly T[],
+  repoRoot: string,
+): T[] {
+  return sessions.filter(
+    (session) => matchSessionToRepository(session, repoRoot).matched,
+  );
+}
+
+/**
+ * Match an array of sessions against a repository, returning each session paired with its match report.
+ * Preserves the input array order deterministically.
+ */
+export function matchSessionsToRepository<T extends MatchableSession>(
+  sessions: readonly T[],
+  repoRoot: string,
+): Array<{ session: T; match: RepositorySessionMatch }> {
+  return sessions.map((session) => ({
+    session,
+    match: matchSessionToRepository(session, repoRoot),
+  }));
+}
