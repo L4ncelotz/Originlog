@@ -1,0 +1,96 @@
+# ============================================================
+# Dependencies
+# ============================================================
+node_modules/
+
+# Build output
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# Package manager cache
+.npm/
+.pnpm-store/
+.yarn/
+.cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Local tooling / AI
+.claude/
+.codex/
+.cursor/
+.opencode/
+.agent/
+.agents/
+
+# Local test artifacts
+test-results/
+playwright-report/
+.nyc_output/
+
+# Generated reports
+reports/
+originlog-report.html
+
+# ============================================================
+# Internal project documentation
+# ============================================================
+docs/*.md
+
+# Public Markdown files
+!README.md
+!CONTRIBUTING.md
+!CHANGELOG.md
+!SECURITY.md
+!CODE_OF_CONDUCT.md
+
+# ============================================================
+# Internal planning files
+# ============================================================
+# AGENTTRACE_PROJECT_PLAN.md deleted — provenance lives in docs/ only
+
+# Local notes
+notes/
+.notes/
+TODO.local.md
+SCRATCH.md
