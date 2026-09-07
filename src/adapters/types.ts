@@ -43,6 +43,15 @@ export interface AgentDetection {
   /** Human-readable diagnostic warnings (permission, format, etc.). */
   warnings?: string[];
 }
+/**
+ * An adapter paired with the result of probing its environment.
+ */
+export interface DetectedAgent {
+  /** The adapter that was probed. */
+  adapter: AgentAdapter;
+  /** The detection report returned by the adapter. */
+  detection: AgentDetection;
+}
 
 /**
  * The contract every agent adapter must satisfy.
