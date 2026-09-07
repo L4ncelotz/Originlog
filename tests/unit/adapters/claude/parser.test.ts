@@ -507,6 +507,123 @@ describe("parseClaudeSession", () => {
     );
     expect(session.events[0]?.file).toBe("src/service.ts");
   });
+  it("resolves canonical sessionId upfront so every event matches the session ID", () => {
+    const lines = [
+      JSON.stringify({
+        type: "user",
+        uuid: "u-1",
+        promptId: "p-1",
+        message: { role: "user", content: "First prompt" },
+      }),
+      JSON.stringify({
+        type: "assistant",
+        uuid: "u-2",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_read",
+              name: "Read",
+              input: { file_path: "src/auth.ts" },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "user",
+        sessionId: "canonical-session-uuid-999",
+        uuid: "u-3",
+        promptId: "p-2",
+        message: { role: "user", content: "Second prompt" },
+      }),
+    ].join("\n");
+
+    const session = parseClaudeSession("fallback-sid", lines, "/path.jsonl");
+    expect(session.id).toBe("canonical-session-uuid-999");
+    expect(session.events).toHaveLength(3);
+    for (const ev of session.events) {
+      expect(ev.sessionId).toBe("canonical-session-uuid-999");
+      expect(ev.sessionId).toBe(session.id);
+    }
+  });
+
+  it("validates Read line ranges as valid 1-based data and rejects invalid numbers", () => {
+    const testCases = [
+      { offset: 1, limit: 10, expected: { startLine: 1, endLine: 10 } },
+      { offset: 10, limit: 15, expected: { startLine: 10, endLine: 24 } },
+      { offset: 0, limit: 10, expected: undefined },
+      { offset: -5, limit: 10, expected: undefined },
+      { offset: 10, limit: 0, expected: undefined },
+      { offset: 10, limit: -2, expected: undefined },
+      { offset: 1.5, limit: 10, expected: undefined },
+      { offset: 10, limit: 2.5, expected: undefined },
+      { offset: Number.NaN, limit: 10, expected: undefined },
+    ];
+
+    for (const tc of testCases) {
+      const line = JSON.stringify({
+        type: "assistant",
+        sessionId: "s-range",
+        uuid: `u-range-${tc.offset}-${tc.limit}`,
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: `toolu_${tc.offset}_${tc.limit}`,
+              name: "Read",
+              input: { file_path: "src/a.ts", offset: tc.offset, limit: tc.limit },
+            },
+          ],
+        },
+      });
+
+      const session = parseClaudeSession("s-range", line, "/path.jsonl");
+      expect(session.events[0]?.range).toEqual(tc.expected);
+    }
+  });
+
+  it("validates view_range as valid 1-based data", () => {
+    const validLine = JSON.stringify({
+      type: "assistant",
+      sessionId: "s-vr",
+      uuid: "u-vr-1",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_vr_1",
+            name: "Read",
+            input: { file_path: "src/a.ts", view_range: [5, 25] },
+          },
+        ],
+      },
+    });
+    expect(parseClaudeSession("s-vr", validLine, "/path.jsonl").events[0]?.range).toEqual({
+      startLine: 5,
+      endLine: 25,
+    });
+
+    const invalidLine = JSON.stringify({
+      type: "assistant",
+      sessionId: "s-vr",
+      uuid: "u-vr-2",
+      message: {
+        role: "assistant",
+        content: [
+          {
+            type: "tool_use",
+            id: "toolu_vr_2",
+            name: "Read",
+            input: { file_path: "src/a.ts", view_range: [25, 5] },
+          },
+        ],
+      },
+    });
+    expect(parseClaudeSession("s-vr", invalidLine, "/path.jsonl").events[0]?.range).toBeUndefined();
+  });
 });
 
 describe("parseClaudeSessionSummary", () => {
@@ -573,5 +690,51 @@ describe("parseClaudeSessionSummary", () => {
 
   it("returns null if header is completely empty", () => {
     expect(parseClaudeSessionSummary("", "")).toBeNull();
+  });
+  it("computes accurate endedAt and eventCount across the entire session file", () => {
+    const lines: string[] = [
+      JSON.stringify({
+        type: "user",
+        sessionId: "large-session",
+        uuid: "u-0",
+        timestamp: "2026-07-24T10:00:00.000Z",
+        promptId: "p-start",
+        message: { role: "user", content: "Start big session" },
+      }),
+    ];
+
+    for (let i = 1; i <= 70; i++) {
+      lines.push(
+        JSON.stringify({
+          type: "assistant",
+          sessionId: "large-session",
+          uuid: `u-${i}`,
+          timestamp: new Date(new Date("2026-07-24T10:00:00.000Z").getTime() + i * 60000).toISOString(),
+          message: {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_use",
+                id: `toolu_${i}`,
+                name: "Read",
+                input: { file_path: `src/file_${i % 5}.ts` },
+              },
+            ],
+          },
+        }),
+      );
+    }
+
+    const summary = parseClaudeSessionSummary(
+      "large-session.jsonl",
+      lines.join("\n"),
+    );
+
+    expect(summary).not.toBeNull();
+    expect(summary?.id).toBe("large-session");
+    expect(summary?.startedAt).toEqual(new Date("2026-07-24T10:00:00.000Z"));
+    expect(summary?.endedAt).toEqual(new Date("2026-07-24T11:10:00.000Z"));
+    expect(summary?.eventCount).toBe(71);
+    expect(summary?.touchedFileCount).toBe(5);
   });
 });

@@ -9,16 +9,20 @@
  * - Missing data remains unknown (timestamps are never fabricated).
  * - Pre-pass excludes failed tool actions so failed edits do not count as work.
  * - Resumed session entries are deduplicated by UUID.
+ * - Resolves canonical sessionId upfront so every event matches the session ID.
+ * - Line ranges are strictly validated as 1-based data (startLine >= 1, endLine >= startLine).
  */
 
 import {
   createNormalizedEvent,
   type EventType,
+  type LineRange,
   type NormalizedEvent,
 } from "../../core/events.js";
 import {
   createNormalizedSession,
   normalizePath,
+  summarizeSession,
   type NormalizedSession,
   type NormalizedSessionSummary,
 } from "../../core/sessions.js";
@@ -89,6 +93,49 @@ function isUserPromptLine(line: ClaudeTranscriptLine): boolean {
 }
 
 /**
+ * Safely parse and validate a 1-based line range from tool input.
+ * Guarantees startLine >= 1 and endLine >= startLine.
+ * Returns undefined if values are missing, non-integer, or invalid.
+ */
+function parseReadLineRange(
+  input: Record<string, unknown>,
+): LineRange | undefined {
+  // 1. Check offset + limit (Claude Read tool)
+  if (
+    typeof input.offset === "number" &&
+    typeof input.limit === "number" &&
+    Number.isInteger(input.offset) &&
+    Number.isInteger(input.limit) &&
+    input.offset >= 1 &&
+    input.limit >= 1
+  ) {
+    const endLine = input.offset + input.limit - 1;
+    if (endLine >= input.offset) {
+      return { startLine: input.offset, endLine };
+    }
+  }
+
+  // 2. Check view_range: [start, end] (Claude View tool / range format)
+  if (
+    Array.isArray(input.view_range) &&
+    input.view_range.length === 2 &&
+    typeof input.view_range[0] === "number" &&
+    typeof input.view_range[1] === "number" &&
+    Number.isInteger(input.view_range[0]) &&
+    Number.isInteger(input.view_range[1]) &&
+    input.view_range[0] >= 1 &&
+    input.view_range[1] >= input.view_range[0]
+  ) {
+    return {
+      startLine: input.view_range[0],
+      endLine: input.view_range[1],
+    };
+  }
+
+  return undefined;
+}
+
+/**
  * Parse a Claude Code session .jsonl transcript into a {@link NormalizedSession}.
  *
  * @param sessionId Fallback session ID if not recorded within the transcript.
@@ -119,7 +166,7 @@ export function parseClaudeSession(
     parsedLines.push(parsed);
   }
 
-  // Pre-pass: collect tool_use IDs that ended in an error
+  // Pre-pass 1: collect tool_use IDs that ended in an error
   const failedToolIds = new Set<string>();
   for (const line of parsedLines) {
     const content = line.message?.content;
@@ -139,8 +186,23 @@ export function parseClaudeSession(
     }
   }
 
-  let resolvedSessionId = sessionId;
+  // Pre-pass 2: resolve canonical sessionId and projectPath upfront
+  let canonicalSessionId = sessionId;
+  for (const line of parsedLines) {
+    if (line.sessionId && line.sessionId.trim().length > 0) {
+      canonicalSessionId = line.sessionId.trim();
+      break;
+    }
+  }
+
   let projectPath: string | undefined;
+  for (const line of parsedLines) {
+    if (line.cwd && line.cwd.trim().length > 0) {
+      projectPath = line.cwd.trim();
+      break;
+    }
+  }
+
   let initialPrompt: string | undefined;
   let earliestDate: Date | undefined;
   let latestDate: Date | undefined;
@@ -159,18 +221,6 @@ export function parseClaudeSession(
   let eventSeq = 0;
 
   for (const line of parsedLines) {
-    if (
-      (!resolvedSessionId || resolvedSessionId === sessionId) &&
-      line.sessionId &&
-      line.sessionId.trim().length > 0
-    ) {
-      resolvedSessionId = line.sessionId.trim();
-    }
-
-    if (!projectPath && line.cwd && line.cwd.trim().length > 0) {
-      projectPath = line.cwd.trim();
-    }
-
     const lineTs = parseTimestamp(line.timestamp);
     updateTimestamps(lineTs);
 
@@ -184,7 +234,7 @@ export function parseClaudeSession(
       events.push(
         createNormalizedEvent({
           id: eventId,
-          sessionId: resolvedSessionId,
+          sessionId: canonicalSessionId,
           type: "prompt",
           content: text,
           timestamp: lineTs,
@@ -221,7 +271,7 @@ export function parseClaudeSession(
         let targetFile: string | undefined;
         let command: string | undefined;
         let content: string | undefined;
-        let range: { startLine: number; endLine: number } | undefined;
+        let range: LineRange | undefined;
         let metadata: Record<string, unknown> | undefined;
 
         if (FILE_READ_TOOLS.has(name)) {
@@ -230,15 +280,7 @@ export function parseClaudeSession(
           if (typeof rawPath === "string") {
             targetFile = normalizePath(rawPath, repoRoot);
           }
-          if (
-            typeof input.offset === "number" &&
-            typeof input.limit === "number"
-          ) {
-            range = {
-              startLine: input.offset,
-              endLine: input.offset + input.limit - 1,
-            };
-          }
+          range = parseReadLineRange(input);
         } else if (name === "Edit" || name === "NotebookEdit") {
           eventType = "write";
           const rawPath = input.file_path ?? input.notebook_path;
@@ -299,7 +341,7 @@ export function parseClaudeSession(
         events.push(
           createNormalizedEvent({
             id: block.id,
-            sessionId: resolvedSessionId,
+            sessionId: canonicalSessionId,
             type: eventType,
             file: targetFile,
             command,
@@ -339,7 +381,7 @@ export function parseClaudeSession(
         events.push(
           createNormalizedEvent({
             id: `result-${block.tool_use_id}`,
-            sessionId: resolvedSessionId,
+            sessionId: canonicalSessionId,
             type: resultType,
             success: !isError,
             content: resultContent,
@@ -354,7 +396,7 @@ export function parseClaudeSession(
   const title = initialPrompt ? initialPrompt.split("\n")[0]?.trim() : undefined;
 
   return createNormalizedSession({
-    id: resolvedSessionId,
+    id: canonicalSessionId,
     agent: "claude",
     sourcePath,
     projectPath,
@@ -368,66 +410,31 @@ export function parseClaudeSession(
 }
 
 /**
- * Fast summary parser for session listing.
- * Reads the first few lines of a transcript to extract summary metadata
- * without reading or parsing the full file.
+ * Summary parser for session listing.
+ * Parses the full transcript content into a normalized session and summarizes it,
+ * guaranteeing accurate startedAt, endedAt, eventCount, touchedFileCount, and promptPreview.
+ * Does not report partial estimates or guesses.
  */
 export function parseClaudeSessionSummary(
   fileBasename: string,
-  headerContent: string,
+  content: string,
+  sourcePath?: string,
+  repoRoot?: string,
 ): NormalizedSessionSummary | null {
-  const lines = headerContent.split(/\r?\n/).slice(0, 50);
-  let resolvedSessionId: string | undefined;
-  let projectPath: string | undefined;
-  let initialPrompt: string | undefined;
-  let earliestDate: Date | undefined;
-  let latestDate: Date | undefined;
-  let eventCount = 0;
+  const fallbackId = fileBasename.replace(/\.[^/.]+$/, "");
+  if (!fallbackId || content.trim().length === 0) return null;
 
-  for (const rawLine of lines) {
-    if (rawLine.trim().length === 0) continue;
-    const parsed = parseTranscriptLine(rawLine);
-    if (!parsed) continue;
+  const session = parseClaudeSession(
+    fallbackId,
+    content,
+    sourcePath ?? fallbackId,
+    repoRoot,
+  );
 
-    eventCount++;
-
-    if (!resolvedSessionId && parsed.sessionId && parsed.sessionId.trim().length > 0) {
-      resolvedSessionId = parsed.sessionId.trim();
-    }
-
-    if (!projectPath && parsed.cwd && parsed.cwd.trim().length > 0) {
-      projectPath = parsed.cwd.trim();
-    }
-
-    const ts = parseTimestamp(parsed.timestamp);
-    if (ts) {
-      if (!earliestDate || ts < earliestDate) earliestDate = ts;
-      if (!latestDate || ts > latestDate) latestDate = ts;
-    }
-
-    if (!initialPrompt && isUserPromptLine(parsed)) {
-      const text = extractTextContent(parsed.message?.content);
-      if (text.trim().length > 0) {
-        initialPrompt = text.trim();
-      }
-    }
+  // If session has no events, no prompt, and no timestamps, it's not a usable session
+  if (session.events.length === 0 && !session.prompt && !session.startedAt) {
+    return null;
   }
 
-  const finalSessionId =
-    resolvedSessionId ?? fileBasename.replace(/\.[^/.]+$/, "");
-  if (!finalSessionId) return null;
-
-  const promptPreview = initialPrompt
-    ? initialPrompt.split("\n")[0]?.trim().slice(0, 100)
-    : undefined;
-
-  return {
-    id: finalSessionId,
-    agent: "claude",
-    projectPath,
-    startedAt: earliestDate,
-    endedAt: latestDate,
-    promptPreview,
-    eventCount,
-  };
+  return summarizeSession(session);
 }

@@ -4,6 +4,10 @@
  * Implements the {@link AgentAdapter} contract for Claude Code, integrating
  * discovery, listing, and session parsing without leaking Claude-specific
  * structures into the core model.
+ *
+ * Guarantees:
+ * - Metadata/config files (history.jsonl, settings.json) are never treated as session transcripts.
+ * - Summaries are computed from complete session data, never partial estimates.
  */
 
 import { promises as fs } from "node:fs";
@@ -19,6 +23,7 @@ import type {
 import {
   detectClaude,
   getClaudeCandidatePaths,
+  isCandidateSessionFile,
   scanSessionFiles,
   toPosixPath,
 } from "./detector.js";
@@ -29,6 +34,7 @@ import {
 
 /**
  * Scan a list of source paths for all candidate session files.
+ * Rejects non-session files like history.jsonl, settings, and metadata files.
  */
 async function findAllSessionFiles(
   context: AdapterContext,
@@ -42,13 +48,25 @@ async function findAllSessionFiles(
       const stat = await fs.stat(candidate);
       if (stat.isDirectory()) {
         const baseName = path.basename(candidate);
-        if (
-          baseName === "sessions" ||
-          baseName === "projects" ||
-          baseName === ".claude"
-        ) {
+        // Only scan directories that actually hold session transcripts
+        if (baseName === "sessions" || baseName === "projects") {
           const files = await scanSessionFiles(candidate, warnings);
           sessionFiles.push(...files);
+        } else if (baseName === ".claude") {
+          // Inside .claude root, look only in sessions/ and projects/ subdirectories.
+          // Top-level files in .claude/ (e.g. history.jsonl, settings.json) are not transcripts.
+          for (const sub of ["sessions", "projects"]) {
+            const subDir = path.join(candidate, sub);
+            try {
+              const subStat = await fs.stat(subDir);
+              if (subStat.isDirectory()) {
+                const files = await scanSessionFiles(subDir, warnings);
+                sessionFiles.push(...files);
+              }
+            } catch {
+              // Subdirectory does not exist
+            }
+          }
         }
       }
     } catch {
@@ -56,11 +74,14 @@ async function findAllSessionFiles(
     }
   }
 
-  return [...new Set(sessionFiles)];
+  return [...new Set(sessionFiles.filter(isCandidateSessionFile))];
 }
 
 /**
  * List summaries for all Claude Code sessions discovered on disk.
+ *
+ * Reads complete transcript files so startedAt, endedAt, eventCount,
+ * and promptPreview are accurate facts, not partial estimates.
  */
 async function listSessions(
   context: AdapterContext,
@@ -77,11 +98,11 @@ async function listSessions(
   for (const file of files) {
     try {
       const content = await fs.readFile(file, "utf8");
-      // Read first 50 lines for summary
-      const lines = content.split(/\r?\n/).slice(0, 50).join("\n");
       const summary = parseClaudeSessionSummary(
         path.basename(file),
-        lines,
+        content,
+        toPosixPath(file),
+        context.repoRoot,
       );
       if (summary) {
         summariesMap.set(summary.id, summary);
@@ -108,6 +129,7 @@ async function listSessions(
  * Load a full normalized session by its ID.
  *
  * Throws an Error if the session file is not found on disk.
+ * Explicitly rejects metadata/config files from being loaded as sessions.
  */
 async function loadSession(
   sessionId: string,

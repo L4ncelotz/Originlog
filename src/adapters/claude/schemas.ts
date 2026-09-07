@@ -107,7 +107,7 @@ export type ClaudeContentBlock = z.infer<typeof ClaudeContentBlockSchema>;
  */
 export const ClaudeMessageSchema = z
   .object({
-    role: z.enum(["user", "assistant"]).optional(),
+    role: z.string().optional(),
     id: z.string().optional(),
     content: z.union([z.string(), z.array(ClaudeContentBlockSchema)]).optional(),
     usage: z
@@ -127,7 +127,7 @@ export type ClaudeMessage = z.infer<typeof ClaudeMessageSchema>;
  */
 export const ClaudeTranscriptLineSchema = z
   .object({
-    type: z.enum(["user", "assistant", "system", "progress"]).optional(),
+    type: z.string().optional(),
     sessionId: z.string().optional(),
     uuid: z.string().optional(),
     timestamp: z.union([z.number(), z.string()]).optional(),

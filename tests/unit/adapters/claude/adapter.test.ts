@@ -98,6 +98,47 @@ describe("claudeAdapter.listSessions", () => {
       expect(list[1]?.promptPreview).toBe("Task A");
     });
   });
+  it("never treats history.jsonl or other config files as session transcripts", async () => {
+    await withTempContext(async (context) => {
+      const globalClaude = path.join(context.homeDir, ".claude");
+      await fs.mkdir(globalClaude, { recursive: true });
+
+      // Write history.jsonl directly under ~/.claude/
+      await fs.writeFile(
+        path.join(globalClaude, "history.jsonl"),
+        JSON.stringify({
+          display: "user prompt from history",
+          sessionId: "history-session-id",
+          timestamp: 1779932407431,
+        }) + "\n",
+        "utf8",
+      );
+
+      // Write settings.json and known_marketplaces.json
+      await fs.writeFile(
+        path.join(globalClaude, "settings.json"),
+        JSON.stringify({ model: "claude-3-opus" }),
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(globalClaude, "known_marketplaces.json"),
+        JSON.stringify([]),
+        "utf8",
+      );
+
+      // Also add a project dir with a meta.json
+      const projectDir = path.join(globalClaude, "projects", "proj1");
+      await fs.mkdir(projectDir, { recursive: true });
+      await fs.writeFile(
+        path.join(projectDir, "agent-123.meta.json"),
+        JSON.stringify({ agentType: "task" }),
+        "utf8",
+      );
+
+      const list = await claudeAdapter.listSessions(context);
+      expect(list).toEqual([]);
+    });
+  });
 });
 
 describe("claudeAdapter.loadSession", () => {
@@ -161,6 +202,24 @@ describe("claudeAdapter.loadSession", () => {
       await expect(
         claudeAdapter.loadSession("nonexistent-session-id", context),
       ).rejects.toThrow("Session not found: nonexistent-session-id");
+    });
+  });
+  it("refuses to load history.jsonl as a session", async () => {
+    await withTempContext(async (context) => {
+      const globalClaude = path.join(context.homeDir, ".claude");
+      await fs.mkdir(globalClaude, { recursive: true });
+      await fs.writeFile(
+        path.join(globalClaude, "history.jsonl"),
+        JSON.stringify({
+          display: "not a session",
+          sessionId: "history",
+        }) + "\n",
+        "utf8",
+      );
+
+      await expect(
+        claudeAdapter.loadSession("history", context),
+      ).rejects.toThrow("Session not found: history");
     });
   });
 });

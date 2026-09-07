@@ -117,8 +117,34 @@ async function checkPath(
 }
 
 /**
+/** Known metadata, configuration, or non-transcript filenames to ignore as sessions. */
+const NON_SESSION_FILE_NAMES = new Set([
+  "history.jsonl",
+  "settings.json",
+  "known_marketplaces.json",
+  "stats-cache.json",
+]);
+
+/**
+ * Check whether a filename corresponds to a candidate session transcript file.
+ * Rejects history.jsonl, settings, marketplaces, caches, and *.meta.json files.
+ */
+export function isCandidateSessionFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  if (NON_SESSION_FILE_NAMES.has(lower)) {
+    return false;
+  }
+  if (lower.endsWith(".meta.json")) {
+    return false;
+  }
+  const ext = path.extname(lower);
+  return ext === ".json" || ext === ".jsonl";
+}
+
+/**
  * Safely scan a directory for session files (.json and .jsonl).
  * Recursively scans one level of subdirectories (e.g. projects/<id>/).
+ * Automatically excludes configuration and metadata files like history.jsonl.
  */
 export async function scanSessionFiles(
   dir: string,
@@ -130,15 +156,8 @@ export async function scanSessionFiles(
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (ext === ".json" || ext === ".jsonl") {
-          // Exclude configuration files
-          if (
-            entry.name !== "settings.json" &&
-            entry.name !== "known_marketplaces.json"
-          ) {
-            files.push(toPosixPath(fullPath));
-          }
+        if (isCandidateSessionFile(entry.name)) {
+          files.push(toPosixPath(fullPath));
         }
       } else if (entry.isDirectory()) {
         // One level down (e.g., project subdirectories)
@@ -147,11 +166,8 @@ export async function scanSessionFiles(
             withFileTypes: true,
           });
           for (const sub of subEntries) {
-            if (sub.isFile()) {
-              const ext = path.extname(sub.name).toLowerCase();
-              if (ext === ".json" || ext === ".jsonl") {
-                files.push(toPosixPath(path.join(fullPath, sub.name)));
-              }
+            if (sub.isFile() && isCandidateSessionFile(sub.name)) {
+              files.push(toPosixPath(path.join(fullPath, sub.name)));
             }
           }
         } catch (subErr) {

@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   ClaudeHistoryEntrySchema,
   ClaudeSessionFileHeaderSchema,
+  ClaudeTranscriptLineSchema,
   parseHistoryEntry,
+  parseTranscriptLine,
 } from "../../../../src/adapters/claude/schemas.js";
 
 describe("ClaudeHistoryEntrySchema", () => {
@@ -119,5 +121,41 @@ describe("parseHistoryEntry", () => {
     expect(parseHistoryEntry("null")).toBeNull();
     expect(parseHistoryEntry("[]")).toBeNull();
     expect(parseHistoryEntry([1, 2, 3])).toBeNull();
+  });
+});
+describe("ClaudeTranscriptLineSchema & parseTranscriptLine", () => {
+  it("tolerates unknown top-level record types without failing validation", () => {
+    const raw = JSON.stringify({
+      type: "future_autonomous_event",
+      sessionId: "s-future",
+      uuid: "u-future",
+      timestamp: "2026-07-24T10:00:00.000Z",
+      futurePayload: { arbitrary: 123 },
+    });
+
+    const rawObj = JSON.parse(raw);
+    expect(ClaudeTranscriptLineSchema.safeParse(rawObj).success).toBe(true);
+    const parsed = parseTranscriptLine(raw);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.type).toBe("future_autonomous_event");
+    expect(parsed?.sessionId).toBe("s-future");
+    expect((parsed as Record<string, unknown>).futurePayload).toEqual({
+      arbitrary: 123,
+    });
+  });
+
+  it("tolerates unknown message roles without failing validation", () => {
+    const raw = JSON.stringify({
+      type: "user",
+      uuid: "u-role",
+      message: {
+        role: "custom_role",
+        content: "Hello from custom role",
+      },
+    });
+
+    const parsed = parseTranscriptLine(raw);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.message?.role).toBe("custom_role");
   });
 });
