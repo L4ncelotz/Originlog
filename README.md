@@ -1,5 +1,7 @@
 # Originlog
 
+[![codecov](https://codecov.io/gh/L4ncelotz/Originlog/graph/badge.svg)](https://codecov.io/gh/L4ncelotz/Originlog)
+
 **Know where a code change came from, and why.**
 
 ```bash
