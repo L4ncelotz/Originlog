@@ -1,6 +1,6 @@
 {
   "name": "originlog",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Know where a code change came from, and why.",
   "type": "module",
   "bin": {
