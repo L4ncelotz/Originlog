@@ -1,5 +1,6 @@
 import { Command } from "commander";
 import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerSessionsCommand } from "./commands/sessions.js";
 
 export const program = new Command();
 
@@ -8,3 +9,4 @@ program
   .description("Know where a code change came from, and why.")
   .version("0.0.1");
 registerDoctorCommand(program);
+registerSessionsCommand(program);
