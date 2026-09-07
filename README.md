@@ -36,7 +36,7 @@ Originlog reads local AI coding-agent session data, correlates it with Git histo
 
 ## Status
 
-Planning / pre-implementation. First supported agent: Claude Code.
+Early development. Claude Code is the first supported adapter.
 
 ## Commands
 
@@ -57,19 +57,10 @@ originlog why <commit>           # provenance for a commit
 - **CLI-first** — fast to build, automate, script, and distribute.
 - **Rebuildable state** — SQLite is only an index/cache; agent session files and Git remain the source of truth.
 
-## Documentation
+## Contributing
 
-- [Product](docs/01-PRODUCT.md)
-- [Tech Stack](docs/02-TECH-STACK.md)
-- [Architecture](docs/03-ARCHITECTURE.md)
-- [Data Model](docs/04-DATA-MODEL.md)
-- [Implementation](docs/05-IMPLEMENTATION.md)
-- [Phase Plan](docs/06-PHASE-PLAN.md)
-- [Testing](docs/07-TESTING.md)
-- [Roadmap](docs/08-ROADMAP.md)
-- [Git Workflow](docs/09-Git-Workflow.md)
-- [Contributing](CONTRIBUTING.md)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
 
 ## License
 
-An open-source license will be chosen before the first public release (MIT or Apache-2.0).
+MIT
